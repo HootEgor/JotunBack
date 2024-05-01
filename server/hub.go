@@ -2,9 +2,11 @@ package server
 
 import (
 	"JotunBack/model"
+	"JotunBack/repository"
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -37,7 +39,54 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request) {
+func handleMessage(conn *websocket.Conn, hub *Hub, id string, userRepo *repository.UserRepository) {
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			log.Println("Error reading message:", err)
+			break
+		}
+		log.Printf("Received message from connection %s: %s\n", id, msg)
+
+		//try to decode as Temp
+		var temp model.Temp
+		err = json.Unmarshal(msg, &temp)
+		if err == nil {
+			log.Printf("Received temperature: %+v\n", temp)
+			var tempDB model.TempDB
+			tempDB.Temperature = temp.Temperature
+			tempDB.TimeStamp = time.Now()
+			err := userRepo.CreateTemp(tempDB, id)
+			if err != nil {
+				log.Println("Error creating temp:", err)
+				continue
+			}
+			continue
+		}
+
+		//try to decode as AirConditionerConfig
+		var acConfig model.AirConditionerConfig
+		err = json.Unmarshal(msg, &acConfig)
+		if err == nil {
+			log.Printf("Received settings: %+v\n", acConfig)
+			//update protocol in Firestore
+			currentState, err := userRepo.GetACState(id)
+			if err != nil {
+				log.Println("Error getting AC state:", err)
+				continue
+			}
+			currentState.Protocol = acConfig.Protocol
+			err = userRepo.UpdateACState(currentState)
+			if err != nil {
+				log.Println("Error updating AC state:", err)
+				continue
+			}
+			continue
+		}
+	}
+}
+
+func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request, userRepo *repository.UserRepository) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade to WebSocket:", err)
@@ -45,7 +94,7 @@ func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	var settings model.AirConditionerSettings
+	var settings model.AirConditionerConfig
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		log.Println("Error reading message:", err)
@@ -61,26 +110,32 @@ func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	id := hub.AddConnection(conn, settings.Username)
 	defer delete(hub.connections, id)
 
-	for {
-		_, msg, err := conn.ReadMessage()
+	//save settings to Firestore if it doesn't exist
+	_, err = userRepo.GetACState(id)
+	if err != nil {
+		err = userRepo.CreateACState(settings)
 		if err != nil {
-			log.Println("Error reading message:", err)
-			break
-		}
-		log.Printf("Received message: %s\n", msg)
-
-		err = conn.WriteMessage(websocket.TextMessage, msg)
-		if err != nil {
-			log.Println("Error writing message:", err)
-			break
+			log.Println("Error creating AC state:", err)
+			return
 		}
 	}
+
+	go handleMessage(conn, hub, id, userRepo)
 }
 
-func (hub *Hub) Unicast(id string, msg []byte) error {
-	conn := hub.GetConnectionByID(id)
+func (hub *Hub) SendACConfig(acConfig model.AirConditionerConfig) {
+	conn := hub.GetConnectionByID(acConfig.Username)
 	if conn == nil {
-		return nil
+		log.Printf("User %s not connected\n", acConfig.Username)
+		return
 	}
-	return conn.WriteMessage(websocket.TextMessage, msg)
+	data, err := json.Marshal(acConfig)
+	if err != nil {
+		log.Println("Error encoding JSON:", err)
+		return
+	}
+	err = conn.WriteMessage(websocket.TextMessage, data)
+	if err != nil {
+		log.Println("Error writing message:", err)
+	}
 }

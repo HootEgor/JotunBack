@@ -1,7 +1,8 @@
 package model
 
-type AirConditionerSettings struct {
+type AirConditionerConfig struct {
 	Username string `json:"username"`
+	Config   bool   `json:"config"`
 	Protocol int    `json:"protocol"`
 	Model    int    `json:"model"`
 	Mode     int    `json:"mode"`
