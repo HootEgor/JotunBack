@@ -51,7 +51,10 @@ func (r *UserRepository) GetACState(username string) (model.AirConditionerConfig
 		return model.AirConditionerConfig{}, err
 	}
 	var acState model.AirConditionerConfig
-	doc.DataTo(&acState)
+	err = doc.DataTo(&acState)
+	if err != nil {
+		return model.AirConditionerConfig{}, err
+	}
 	return acState, nil
 }
 

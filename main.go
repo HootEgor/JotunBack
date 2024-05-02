@@ -1,6 +1,7 @@
 package main
 
 import (
+	"JotunBack/handlers/botH"
 	"JotunBack/model"
 	"JotunBack/repository"
 	"JotunBack/server"
@@ -15,7 +16,7 @@ import (
 func main() {
 
 	Ctx := context.Background()
-	serviceAcc := option.WithCredentialsFile("gorillaparser-83bcc-firebase-adminsdk-jr8w8-dd66c11903.json")
+	serviceAcc := option.WithCredentialsFile("serviceAccount/jotunn-8f418-firebase-adminsdk-ddgl2-cd17bb27c3.json")
 	app, err := firebase.NewApp(Ctx, nil, serviceAcc)
 	if err != nil {
 		log.Fatalln(err)
@@ -51,22 +52,46 @@ func main() {
 	var userStates = make(map[string]*model.ACState)
 
 	for update := range updates {
-		go handleMessage(update, bot, userStates, hub)
+		go handleMessage(update, bot, userStates, hub, userRepo)
 	}
 
 }
 
-func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, userStates map[string]*model.ACState, hub *server.Hub) {
+func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, userStates map[string]*model.ACState, hub *server.Hub,
+	userRepo *repository.UserRepository) {
 	if update.Message == nil {
 		return
 	}
+	//userStates[update.Message.From.UserName] = &model.ACState{
+	//	Username: update.Message.From.UserName,
+	//	ChatID:   update.Message.Chat.ID,
+	//
+	//}
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 	switch update.Message.Text {
+	case "/test":
+		err := botH.GetAcProtocol(update.Message.From.UserName, userRepo, hub)
+		if err != nil {
+			return
+		}
+		msg.Text = "Відскануйте будьяку кнонку на пульті"
 	case "/start":
 		msg.Text = "Hello! I am Jotun. How can I help you?"
 	case "/stop":
 		msg.Text = "Goodbye!"
+	case "/on":
+		err := botH.TurnOnAc(update.Message.From.UserName, userRepo, hub)
+		if err != nil {
+			return
+		}
+		msg.Text = "Turning on the air conditioner."
+	case "/off":
+		err := botH.TurnOffAc(update.Message.From.UserName, userRepo, hub)
+		if err != nil {
+			return
+		}
+		msg.Text = "Turning off the air conditioner."
 	default:
 		msg.Text = "I don't understand that command."
 	}
