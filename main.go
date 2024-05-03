@@ -5,6 +5,7 @@ import (
 	"JotunBack/model"
 	"JotunBack/repository"
 	"JotunBack/server"
+	"JotunBack/ui"
 	"context"
 	firebase "firebase.google.com/go/v4"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -49,24 +50,34 @@ func main() {
 		Timeout: 1,
 	})
 
-	var userStates = make(map[string]*model.ACState)
+	var acStates = make(map[string]*model.ACState)
 
 	for update := range updates {
-		go handleMessage(update, bot, userStates, hub, userRepo)
+		if update.Message != nil {
+			go handleMessage(update, bot, acStates, hub, userRepo)
+		} else if update.CallbackQuery != nil {
+			go handleCallback(bot, update, acStates, userRepo)
+		}
 	}
 
 }
 
-func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, userStates map[string]*model.ACState, hub *server.Hub,
+func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[string]*model.ACState, hub *server.Hub,
 	userRepo *repository.UserRepository) {
+
 	if update.Message == nil {
 		return
 	}
-	//userStates[update.Message.From.UserName] = &model.ACState{
-	//	Username: update.Message.From.UserName,
-	//	ChatID:   update.Message.Chat.ID,
-	//
-	//}
+
+	acState := acStates[update.Message.From.UserName]
+	if acState == nil {
+		acState = &model.ACState{
+			Username: update.Message.From.UserName,
+			ChatID:   update.Message.Chat.ID,
+			Config:   model.AirConditionerConfig{},
+		}
+		acStates[update.Message.From.UserName] = acState
+	}
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 	switch update.Message.Text {
@@ -77,6 +88,15 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, userStates map[
 		}
 		msg.Text = "Відскануйте будьяку кнонку на пульті"
 	case "/start":
+		newUser := model.User{
+			Username: update.Message.From.UserName,
+			ChatID:   update.Message.Chat.ID,
+		}
+		err := userRepo.CreateUser(newUser)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 		msg.Text = "Hello! I am Jotun. How can I help you?"
 	case "/stop":
 		msg.Text = "Goodbye!"
@@ -92,6 +112,8 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, userStates map[
 			return
 		}
 		msg.Text = "Turning off the air conditioner."
+	case "/config":
+		ui.ConfigForm(bot, acState)
 	default:
 		msg.Text = "I don't understand that command."
 	}
@@ -100,4 +122,24 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, userStates map[
 		log.Println(err)
 	}
 
+}
+
+func handleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, acStates map[string]*model.ACState,
+	userRepo *repository.UserRepository) {
+
+	if update.CallbackQuery == nil {
+		return
+	}
+
+	acState := acStates[update.CallbackQuery.From.UserName]
+	if acState == nil {
+		acState = &model.ACState{
+			Username: update.CallbackQuery.From.UserName,
+			ChatID:   update.CallbackQuery.Message.Chat.ID,
+			Config:   model.AirConditionerConfig{},
+		}
+		acStates[update.CallbackQuery.From.UserName] = acState
+	}
+
+	ui.InLineKeyboardHandler(bot, acState, userRepo, update)
 }
