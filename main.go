@@ -2,6 +2,7 @@ package main
 
 import (
 	"JotunBack/handlers/botH"
+	"JotunBack/handlers/chatGPT"
 	"JotunBack/model"
 	"JotunBack/repository"
 	"JotunBack/server"
@@ -10,6 +11,7 @@ import (
 	firebase "firebase.google.com/go/v4"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"google.golang.org/api/option"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -41,7 +43,12 @@ func main() {
 		log.Fatal(http.ListenAndServe(":8081", nil))
 	}()
 
-	bot, err := tgbotapi.NewBotAPI("7000758343:AAHEh8KWo-hBPQVL0XvJ1i76_7yzWJUNnTQ")
+	apiKey, err := ioutil.ReadFile("serviceAccount/apiKey.txt")
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bot, err := tgbotapi.NewBotAPI(string(apiKey))
 	if err != nil {
 		log.Panic(err)
 	}
@@ -56,7 +63,7 @@ func main() {
 		if update.Message != nil {
 			go handleMessage(update, bot, acStates, hub, userRepo)
 		} else if update.CallbackQuery != nil {
-			go handleCallback(bot, update, acStates, userRepo)
+			go handleCallback(update, bot, acStates, hub, userRepo)
 		}
 	}
 
@@ -71,10 +78,14 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 
 	acState := acStates[update.Message.From.UserName]
 	if acState == nil {
+		state, err := userRepo.GetACState(update.Message.From.UserName)
+		if err != nil {
+			return
+		}
 		acState = &model.ACState{
 			Username: update.Message.From.UserName,
 			ChatID:   update.Message.Chat.ID,
-			Config:   model.AirConditionerConfig{},
+			Config:   state,
 		}
 		acStates[update.Message.From.UserName] = acState
 	}
@@ -113,9 +124,14 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 		}
 		msg.Text = "Turning off the air conditioner."
 	case "/config":
-		ui.ConfigForm(bot, acState)
+		isOnline := hub.GetConnectionByID(update.Message.From.UserName) != nil
+		ui.ConfigForm(bot, acState, isOnline)
 	default:
-		msg.Text = "I don't understand that command."
+		err := chatGPT.SendGPTRequest(update.Message.Text)
+		if err != nil {
+			return
+		}
+
 	}
 
 	if _, err := bot.Send(msg); err != nil {
@@ -124,7 +140,7 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 
 }
 
-func handleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, acStates map[string]*model.ACState,
+func handleCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[string]*model.ACState, hub *server.Hub,
 	userRepo *repository.UserRepository) {
 
 	if update.CallbackQuery == nil {
@@ -141,5 +157,5 @@ func handleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, acStates map[s
 		acStates[update.CallbackQuery.From.UserName] = acState
 	}
 
-	ui.InLineKeyboardHandler(bot, acState, userRepo, update)
+	ui.InLineKeyboardHandler(bot, acState, userRepo, update, hub)
 }

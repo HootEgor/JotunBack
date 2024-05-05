@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-func ConfigForm(bot *tgbotapi.BotAPI, acState *model.ACState) {
-	msg := tgbotapi.NewMessage(acState.ChatID, ConfigMsg(acState))
+func ConfigForm(bot *tgbotapi.BotAPI, acState *model.ACState, isOnline bool) {
+	msg := tgbotapi.NewMessage(acState.ChatID, ConfigMsg(acState, isOnline))
 
 	keyboard := ConfigKeyboard(acState)
 	msg.ReplyMarkup = keyboard
@@ -29,19 +29,30 @@ func ConfigKeyboard(acState *model.ACState) tgbotapi.InlineKeyboardMarkup {
 	)
 
 	row2 := tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("❄️", "cool"),
-		tgbotapi.NewInlineKeyboardButtonData("☀️", "heat"),
+		tgbotapi.NewInlineKeyboardButtonData("❄️Cool", "cool"),
+		tgbotapi.NewInlineKeyboardButtonData("☀️Heat", "heat"),
+		tgbotapi.NewInlineKeyboardButtonData("♨️Dry", "dry"),
 	)
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(row1, row2)
 	return keyboard
 }
 
-func ConfigMsg(acState *model.ACState) string {
+func ConfigMsg(acState *model.ACState, isOnline bool) string {
 	modeEmoji := "❄️"
-	if acState.Config.Mode == 2 {
-		modeEmoji = "☀️"
+	switch acState.Config.Mode {
+	case 1:
+		modeEmoji = "❄️Cool"
+	case 2:
+		modeEmoji = "☀️Heat"
+	case 3:
+		modeEmoji = "♨️Dry"
 	}
 
-	return fmt.Sprintf("Режим: %s\nТемпература: %d°C", modeEmoji, acState.Config.Degrees)
+	onlineEmoji := "❌"
+	if isOnline {
+		onlineEmoji = "✅"
+	}
+
+	return fmt.Sprintf("Підключен: %s\nРежим: %s\nТемпература: %d°C", onlineEmoji, modeEmoji, acState.Config.Degrees)
 }
