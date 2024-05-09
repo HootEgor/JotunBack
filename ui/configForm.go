@@ -5,7 +5,6 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
-	"strconv"
 )
 
 func ConfigForm(bot *tgbotapi.BotAPI, acState *model.ACState, isOnline bool) {
@@ -21,10 +20,9 @@ func ConfigForm(bot *tgbotapi.BotAPI, acState *model.ACState, isOnline bool) {
 }
 
 func ConfigKeyboard(acState *model.ACState) tgbotapi.InlineKeyboardMarkup {
-	temp := strconv.Itoa(acState.Config.Degrees) + "°C"
 	row1 := tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("-", "decrease"),
-		tgbotapi.NewInlineKeyboardButtonData(temp, "temperature"),
+		tgbotapi.NewInlineKeyboardButtonData(acState.GetTargetTemp(), "temperature"),
 		tgbotapi.NewInlineKeyboardButtonData("+", "increase"),
 	)
 
@@ -34,19 +32,23 @@ func ConfigKeyboard(acState *model.ACState) tgbotapi.InlineKeyboardMarkup {
 		tgbotapi.NewInlineKeyboardButtonData("♨️Dry", "dry"),
 	)
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(row1, row2)
+	row3 := tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Почати", "start"),
+	)
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(row1, row2, row3)
 	return keyboard
 }
 
 func ConfigMsg(acState *model.ACState, isOnline bool) string {
-	modeEmoji := "❄️"
+	modeEmoji := "Cool❄️"
 	switch acState.Config.Mode {
 	case 1:
-		modeEmoji = "❄️Cool"
+		modeEmoji = "Cool❄️"
 	case 2:
-		modeEmoji = "☀️Heat"
+		modeEmoji = "Heat☀️"
 	case 3:
-		modeEmoji = "♨️Dry"
+		modeEmoji = "Dry♨️"
 	}
 
 	onlineEmoji := "❌"
@@ -54,5 +56,9 @@ func ConfigMsg(acState *model.ACState, isOnline bool) string {
 		onlineEmoji = "✅"
 	}
 
-	return fmt.Sprintf("Підключен: %s\nРежим: %s\nТемпература: %d°C", onlineEmoji, modeEmoji, acState.Config.Degrees)
+	return fmt.Sprintf("Підключен: %s\nРежим: %s\nТемпература: %s °C\nПрацювати до: %s",
+		onlineEmoji,
+		modeEmoji,
+		acState.GetTargetTemp(),
+		acState.Until.Format("15:04"))
 }

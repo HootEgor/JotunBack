@@ -4,6 +4,7 @@ import (
 	"JotunBack/model"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,12 +12,13 @@ import (
 	"time"
 )
 
-func SendGPTRequest(userMessage string) error {
+func SendGPTRequest(userMessage string, acState *model.ACState) (model.GPTResponse, error) {
 	prompt, err := ioutil.ReadFile("serviceAccount/prompt.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
-	promptString := string(prompt) + time.Now().Format("2006-01-02T15:04:05Z07:00")
+	promptString := string(prompt) + time.Now().Format("2006-01-02 15:04")
+	promptString += "Current temperature:" + acState.GetTargetTemp() + "\n"
 	gptKey, err := ioutil.ReadFile("serviceAccount/gptKey.txt")
 	if err != nil {
 		log.Fatal(err)
@@ -33,13 +35,13 @@ func SendGPTRequest(userMessage string) error {
 	// Кодируем данные запроса в JSON
 	jsonData, err := json.Marshal(requestData)
 	if err != nil {
-		return err
+		return model.GPTResponse{}, err
 	}
 
 	// Формируем HTTP-запрос
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return err
+		return model.GPTResponse{}, err
 	}
 
 	gptKeyString := string(gptKey)
@@ -49,60 +51,63 @@ func SendGPTRequest(userMessage string) error {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return model.GPTResponse{}, err
 	}
 	defer resp.Body.Close()
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return model.GPTResponse{}, err
 	}
 
-	log.Println("GPT response:", parseGPTResponse(respBody))
+	response := model.GPTResponse{}
+	for {
+		response, err = parseGPTResponse(respBody)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		break
+	}
 
-	return nil
+	return response, nil
 }
 
-func parseGPTResponse(respBody []byte) model.GPTResponse {
+func parseGPTResponse(respBody []byte) (model.GPTResponse, error) {
 	var data map[string]interface{}
 	err := json.Unmarshal([]byte(respBody), &data)
 	if err != nil {
-		log.Fatal(err)
+		return model.GPTResponse{}, err
 	}
 
-	// Получаем массив choices
 	choices, ok := data["choices"].([]interface{})
 	if !ok || len(choices) == 0 {
-		log.Fatal("Choices not found or empty")
+		return model.GPTResponse{}, errors.New("Choice not found or empty")
 	}
 
-	// Получаем первый элемент массива choices
 	firstChoice, ok := choices[0].(map[string]interface{})
 	if !ok {
-		log.Fatal("Invalid choice format")
+		return model.GPTResponse{}, errors.New("Invalid choice format")
 	}
 
-	// Получаем содержимое сообщения
 	message, ok := firstChoice["message"].(map[string]interface{})
 	if !ok {
-		log.Fatal("Invalid message format")
+		return model.GPTResponse{}, errors.New("Message not found or not a map")
 	}
 
-	// Получаем содержимое контента
 	content, ok := message["content"].(string)
 	if !ok {
-		log.Fatal("Content not found or not a string")
+		return model.GPTResponse{}, errors.New("Content not found or not a string")
 	}
 
 	content = strings.ReplaceAll(content, "```json\n", "")
 	content = strings.ReplaceAll(content, "```", "")
 
-	// Разбираем содержимое в структуру GPTResponse
 	var response model.GPTResponse
 	err = json.Unmarshal([]byte(content), &response)
 	if err != nil {
-		log.Fatal(err)
+		return model.GPTResponse{}, err
 	}
 
-	return response
+	return response, nil
 }

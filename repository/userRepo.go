@@ -41,6 +41,7 @@ func (r *UserRepository) DeleteUser(username string) error {
 }
 
 func (r *UserRepository) CreateACState(acConfig model.AirConditionerConfig) error {
+	acConfig.Power = false
 	_, err := r.c.Collection("users").Doc(acConfig.Username).Collection("acState").Doc("state").Set(r.context, acConfig)
 	return err
 }
@@ -59,6 +60,7 @@ func (r *UserRepository) GetACState(username string) (model.AirConditionerConfig
 }
 
 func (r *UserRepository) UpdateACState(acConfig model.AirConditionerConfig) error {
+	acConfig.Power = false
 	_, err := r.c.Collection("users").Doc(acConfig.Username).Collection("acState").Doc("state").Set(r.context, acConfig)
 	return err
 }
@@ -73,8 +75,8 @@ func (r *UserRepository) CreateTemp(temp model.TempDB, userName string) error {
 	return err
 }
 
-func (r *UserRepository) GetTemp(userName string) ([]model.TempDB, error) {
-	iter := r.c.Collection("users").Doc(userName).Collection("temp").OrderBy("timeStamp", firestore.Desc).Limit(3).Documents(r.context)
+func (r *UserRepository) GetTemp(userName string, number int) ([]model.TempDB, error) {
+	iter := r.c.Collection("users").Doc(userName).Collection("temp").OrderBy("TimeStamp", firestore.Desc).Limit(number).Documents(r.context)
 	var temps []model.TempDB
 	for {
 		doc, err := iter.Next()

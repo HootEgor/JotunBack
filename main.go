@@ -1,8 +1,8 @@
 package main
 
 import (
+	"JotunBack/handlers"
 	"JotunBack/handlers/botH"
-	"JotunBack/handlers/chatGPT"
 	"JotunBack/model"
 	"JotunBack/repository"
 	"JotunBack/server"
@@ -83,9 +83,10 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 			return
 		}
 		acState = &model.ACState{
-			Username: update.Message.From.UserName,
-			ChatID:   update.Message.Chat.ID,
-			Config:   state,
+			Username:   update.Message.From.UserName,
+			ChatID:     update.Message.Chat.ID,
+			TargetTemp: float32(state.Degrees),
+			Config:     state,
 		}
 		acStates[update.Message.From.UserName] = acState
 	}
@@ -112,11 +113,8 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 	case "/stop":
 		msg.Text = "Goodbye!"
 	case "/on":
-		err := botH.TurnOnAc(update.Message.From.UserName, userRepo, hub)
-		if err != nil {
-			return
-		}
 		msg.Text = "Turning on the air conditioner."
+		handlers.StartAC(acState, hub, userRepo, bot, update)
 	case "/off":
 		err := botH.TurnOffAc(update.Message.From.UserName, userRepo, hub)
 		if err != nil {
@@ -126,11 +124,19 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 	case "/config":
 		isOnline := hub.GetConnectionByID(update.Message.From.UserName) != nil
 		ui.ConfigForm(bot, acState, isOnline)
-	default:
-		err := chatGPT.SendGPTRequest(update.Message.Text)
-		if err != nil {
-			return
-		}
+		//default:
+		//	response, err := chatGPT.SendGPTRequest(update.Message.Text, acState)
+		//	if err != nil {
+		//		log.Println(err)
+		//		return
+		//	}
+		//	err = handlers.GPTRespToACState(response, acState)
+		//	if err != nil {
+		//		msg.Text = err.Error()
+		//	} else {
+		//		isOnline := hub.GetConnectionByID(update.Message.From.UserName) != nil
+		//		ui.ConfigForm(bot, acState, isOnline)
+		//	}
 
 	}
 
@@ -149,13 +155,18 @@ func handleCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[s
 
 	acState := acStates[update.CallbackQuery.From.UserName]
 	if acState == nil {
+		state, err := userRepo.GetACState(update.CallbackQuery.From.UserName)
+		if err != nil {
+			return
+		}
 		acState = &model.ACState{
-			Username: update.CallbackQuery.From.UserName,
-			ChatID:   update.CallbackQuery.Message.Chat.ID,
-			Config:   model.AirConditionerConfig{},
+			Username:   update.CallbackQuery.From.UserName,
+			ChatID:     update.CallbackQuery.Message.Chat.ID,
+			TargetTemp: float32(state.Degrees),
+			Config:     state,
 		}
 		acStates[update.CallbackQuery.From.UserName] = acState
 	}
 
-	ui.InLineKeyboardHandler(bot, acState, userRepo, update, hub)
+	handlers.InLineKeyboardHandler(bot, acState, userRepo, update, hub)
 }
