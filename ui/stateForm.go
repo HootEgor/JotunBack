@@ -46,7 +46,7 @@ func StateMsg(acState *model.ACState, isOnline bool) string {
 	return fmt.Sprintf("Підключен: %s\nРежим: %s\nТемпература: %s -> %s °C \nПрацювати до: %s",
 		onlineEmoji,
 		modeEmoji,
-		acState.GetTargetTemp(),
 		acState.GetTemp(),
+		acState.GetTargetTemp(),
 		acState.Until.Format("15:04"))
 }

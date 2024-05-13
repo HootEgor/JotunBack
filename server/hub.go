@@ -5,11 +5,9 @@ import (
 	"JotunBack/repository"
 	"encoding/json"
 	"errors"
+	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
-	"time"
-
-	"github.com/gorilla/websocket"
 )
 
 type Hub struct {
@@ -40,7 +38,8 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func handleMessage(conn *websocket.Conn, hub *Hub, id string, userRepo *repository.UserRepository) {
+func handleMessage(conn *websocket.Conn, hub *Hub, id string, userRepo *repository.UserRepository,
+	states map[string]*model.ACState) {
 	defer conn.Close()
 	defer delete(hub.connections, id)
 	for {
@@ -55,42 +54,36 @@ func handleMessage(conn *websocket.Conn, hub *Hub, id string, userRepo *reposito
 		var temp model.Temp
 		err = json.Unmarshal(msg, &temp)
 		if err == nil && temp.Temperature != 0 {
-			log.Printf("Received temperature: %+v\n", temp)
-			var tempDB model.TempDB
-			tempDB.Temperature = temp.Temperature
-			tempDB.TimeStamp = time.Now()
-			err := userRepo.CreateTemp(tempDB, id)
-			if err != nil {
-				log.Println("Error creating temp:", err)
+			if states[id] != nil {
+				go HandleTemperature(states[id], hub, temp.Temperature)
+			}
+		} else {
+			//try to decode as AirConditionerConfig
+			var acConfig model.AirConditionerConfig
+			err = json.Unmarshal(msg, &acConfig)
+			if err == nil {
+				log.Printf("Received settings: %+v\n", acConfig)
+				//update protocol in Firestore
+				currentState, err := userRepo.GetACState(id)
+				if err != nil {
+					log.Println("Error getting AC state:", err)
+					continue
+				}
+				currentState.Protocol = acConfig.Protocol
+				currentState.Config = false
+				err = userRepo.UpdateACState(currentState)
+				if err != nil {
+					log.Println("Error updating AC state:", err)
+					continue
+				}
 				continue
 			}
-			continue
-		}
-
-		//try to decode as AirConditionerConfig
-		var acConfig model.AirConditionerConfig
-		err = json.Unmarshal(msg, &acConfig)
-		if err == nil {
-			log.Printf("Received settings: %+v\n", acConfig)
-			//update protocol in Firestore
-			currentState, err := userRepo.GetACState(id)
-			if err != nil {
-				log.Println("Error getting AC state:", err)
-				continue
-			}
-			currentState.Protocol = acConfig.Protocol
-			currentState.Config = false
-			err = userRepo.UpdateACState(currentState)
-			if err != nil {
-				log.Println("Error updating AC state:", err)
-				continue
-			}
-			continue
 		}
 	}
 }
 
-func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request, userRepo *repository.UserRepository) {
+func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request, userRepo *repository.UserRepository,
+	states map[string]*model.ACState) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade to WebSocket:", err)
@@ -125,7 +118,7 @@ func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request, userRepo 
 		}
 	}
 
-	go handleMessage(conn, hub, id, userRepo)
+	go handleMessage(conn, hub, id, userRepo, states)
 }
 
 func (hub *Hub) SendACConfig(acConfig model.AirConditionerConfig) error {

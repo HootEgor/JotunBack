@@ -35,14 +35,6 @@ func main() {
 
 	hub := server.NewHub()
 
-	go func() {
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			server.HandleWebSocket(hub, w, r, userRepo)
-		})
-		log.Println("WebSocket server started on :8081")
-		log.Fatal(http.ListenAndServe(":8081", nil))
-	}()
-
 	apiKey, err := ioutil.ReadFile("serviceAccount/apiKey.txt")
 	if err != nil {
 		log.Panic(err)
@@ -58,6 +50,14 @@ func main() {
 	})
 
 	var acStates = make(map[string]*model.ACState)
+
+	go func() {
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			server.HandleWebSocket(hub, w, r, userRepo, acStates)
+		})
+		log.Println("WebSocket server started on :8081")
+		log.Fatal(http.ListenAndServe(":8081", nil))
+	}()
 
 	for update := range updates {
 		if update.Message != nil {
@@ -85,11 +85,17 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 		acState = &model.ACState{
 			Username:   update.Message.From.UserName,
 			ChatID:     update.Message.Chat.ID,
+			Bot:        bot,
 			TargetTemp: float32(state.Degrees),
+			Stop:       true,
 			Config:     state,
 		}
 		acStates[update.Message.From.UserName] = acState
 	}
+
+	//if !acState.Stop {
+	//	return
+	//}
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 	switch update.Message.Text {
@@ -114,7 +120,7 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 		msg.Text = "Goodbye!"
 	case "/on":
 		msg.Text = "Turning on the air conditioner."
-		handlers.StartAC(acState, hub, userRepo, bot, update)
+		handlers.StartAC(acState, hub, userRepo, update)
 	case "/off":
 		err := botH.TurnOffAc(update.Message.From.UserName, userRepo, hub)
 		if err != nil {
@@ -162,7 +168,9 @@ func handleCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[s
 		acState = &model.ACState{
 			Username:   update.CallbackQuery.From.UserName,
 			ChatID:     update.CallbackQuery.Message.Chat.ID,
+			Bot:        bot,
 			TargetTemp: float32(state.Degrees),
+			Stop:       true,
 			Config:     state,
 		}
 		acStates[update.CallbackQuery.From.UserName] = acState

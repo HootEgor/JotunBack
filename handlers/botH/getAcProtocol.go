@@ -50,6 +50,10 @@ func TurnOffAc(username string, userRepo *repository.UserRepository,
 	}
 
 	currentConfig.Power = false
+	err = userRepo.UpdateACState(currentConfig)
+	if err != nil {
+		return err
+	}
 
 	err = hub.SendACConfig(currentConfig)
 	if err != nil {

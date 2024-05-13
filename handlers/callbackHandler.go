@@ -30,7 +30,7 @@ func InLineKeyboardHandler(bot *tgbotapi.BotAPI, acState *model.ACState,
 	case "temperature":
 		return
 	case "start":
-		StartAC(acState, hub, userRepo, bot, update)
+		StartAC(acState, hub, userRepo, update)
 		return
 	case "stop":
 		err := botH.TurnOffAc(update.CallbackQuery.From.UserName, userRepo, hub)
