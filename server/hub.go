@@ -3,8 +3,10 @@ package server
 import (
 	"JotunBack/model"
 	"JotunBack/repository"
+	"JotunBack/ui"
 	"encoding/json"
 	"errors"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
@@ -39,7 +41,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func handleMessage(conn *websocket.Conn, hub *Hub, id string, userRepo *repository.UserRepository,
-	states map[string]*model.ACState) {
+	states map[string]*model.ACState, bot *tgbotapi.BotAPI) {
 	defer conn.Close()
 	defer delete(hub.connections, id)
 	for {
@@ -78,12 +80,19 @@ func handleMessage(conn *websocket.Conn, hub *Hub, id string, userRepo *reposito
 				}
 				continue
 			}
+			text := "Тепер ви можете сказати мені, які налаштування ви хочете встановити або вручну встановіть їх."
+			_, err = bot.Send(tgbotapi.NewMessage(states[id].ChatID, text))
+			if err != nil {
+				return
+			}
+			isOnline := hub.GetConnectionByID(id) != nil
+			ui.ConfigForm(bot, states[id], isOnline)
 		}
 	}
 }
 
 func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request, userRepo *repository.UserRepository,
-	states map[string]*model.ACState) {
+	states map[string]*model.ACState, bot *tgbotapi.BotAPI) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade to WebSocket:", err)
@@ -118,7 +127,7 @@ func HandleWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request, userRepo 
 		}
 	}
 
-	go handleMessage(conn, hub, id, userRepo, states)
+	go handleMessage(conn, hub, id, userRepo, states, bot)
 }
 
 func (hub *Hub) SendACConfig(acConfig model.AirConditionerConfig) error {

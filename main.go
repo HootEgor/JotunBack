@@ -54,7 +54,7 @@ func main() {
 
 	go func() {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			server.HandleWebSocket(hub, w, r, userRepo, acStates)
+			server.HandleWebSocket(hub, w, r, userRepo, acStates, bot)
 		})
 		log.Println("WebSocket server started on :8081")
 		log.Fatal(http.ListenAndServe(":8081", nil))
@@ -110,19 +110,19 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 		isOnline := hub.GetConnectionByID(update.Message.From.UserName) != nil
 		ui.ConfigForm(bot, acState, isOnline)
 	case "/start":
-		//newUser := model.User{
-		//	Username: update.Message.From.UserName,
-		//	ChatID:   update.Message.Chat.ID,
-		//}
-		//err := userRepo.CreateUser(newUser)
-		//if err != nil {
-		//	log.Println(err)
-		//	return
-		//}
-		//err := botH.GetAcProtocol(update.Message.From.UserName, userRepo, hub)
-		//if err != nil {
-		//	return
-		//}
+		newUser := model.User{
+			Username: update.Message.From.UserName,
+			ChatID:   update.Message.Chat.ID,
+		}
+		err := userRepo.CreateUser(newUser)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		err = botH.GetAcProtocol(update.Message.From.UserName, userRepo, hub)
+		if err != nil {
+			return
+		}
 		msg.Text = "Відскануйте будь-яку кнонку на пульті"
 	case "/stop":
 		msg.Text = "Goodbye!"

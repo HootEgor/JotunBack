@@ -20,10 +20,23 @@ func HandleTemperature(acState *model.ACState, hub *Hub, currentTemp float32) {
 			if currentTemp > prevTemp {
 				newTemp -= 1
 			}
+
+			if currentTemp < acState.TargetTemp {
+				acState.Config.Power = false
+			} else if acState.Config.Power == false && currentTemp-acState.TargetTemp > 0.5 {
+				acState.Config.Power = true
+			}
 		} else if acState.Config.Mode == HeatMode {
 			if currentTemp < prevTemp {
 				newTemp += 1
 			}
+
+			if currentTemp > acState.TargetTemp {
+				acState.Config.Power = false
+			} else if acState.Config.Power == false && acState.TargetTemp-currentTemp > 0.5 {
+				acState.Config.Power = true
+			}
+
 		}
 
 		acState.CurrentTemp = currentTemp
