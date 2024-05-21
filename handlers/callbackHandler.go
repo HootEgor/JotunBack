@@ -38,7 +38,6 @@ func InLineKeyboardHandler(bot *tgbotapi.BotAPI, acState *model.ACState,
 			return
 		}
 		acState.Stop = true
-		return
 	}
 
 	isOnline := hub.GetConnectionByID(update.CallbackQuery.From.UserName) != nil

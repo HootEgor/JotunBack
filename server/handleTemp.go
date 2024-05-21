@@ -13,9 +13,6 @@ func HandleTemperature(acState *model.ACState, hub *Hub, currentTemp float32) {
 	HeatMode := 2
 	newTemp := float32(acState.Config.Degrees)
 
-	chatID := acState.Update.CallbackQuery.Message.Chat.ID
-	msgID := acState.Update.CallbackQuery.Message.MessageID
-
 	prevTemp := acState.CurrentTemp
 
 	if time.Now().After(acState.NextCheck) {
@@ -40,7 +37,7 @@ func HandleTemperature(acState *model.ACState, hub *Hub, currentTemp float32) {
 	}
 
 	isOnline := hub.GetConnectionByID(acState.Username) != nil
-	msg := tgbotapi.NewEditMessageText(chatID, msgID,
+	msg := tgbotapi.NewEditMessageText(acState.ChatID, acState.MsgID,
 		ui.StateMsg(acState, isOnline))
 
 	keyboard := ui.StateKeyboard(acState)
@@ -50,6 +47,10 @@ func HandleTemperature(acState *model.ACState, hub *Hub, currentTemp float32) {
 	if err != nil {
 		log.Println(err)
 	}
-	msgID = editedMsg.MessageID
+	acState.MsgID = editedMsg.MessageID
 	log.Println("Temperature:", prevTemp, "->", currentTemp, "->", acState.TargetTemp)
+	acState.EmojiNum += 1
+	if acState.EmojiNum > 3 {
+		acState.EmojiNum = 0
+	}
 }

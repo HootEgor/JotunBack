@@ -10,7 +10,8 @@ import (
 
 func StartAC(acState *model.ACState, hub *server.Hub, userRepo *repository.UserRepository,
 	update tgbotapi.Update) {
-	acState.Update = update
+	acState.MsgID = update.CallbackQuery.Message.MessageID
+	acState.EmojiNum = 0
 	acState.Config.Degrees = int(acState.TargetTemp)
 	acState.Config.Power = true
 

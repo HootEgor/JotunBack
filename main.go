@@ -3,6 +3,7 @@ package main
 import (
 	"JotunBack/handlers"
 	"JotunBack/handlers/botH"
+	"JotunBack/handlers/chatGPT"
 	"JotunBack/model"
 	"JotunBack/repository"
 	"JotunBack/server"
@@ -89,6 +90,7 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 			TargetTemp: float32(state.Degrees),
 			Stop:       true,
 			Config:     state,
+			EmojiNum:   1,
 		}
 		acStates[update.Message.From.UserName] = acState
 	}
@@ -100,22 +102,28 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 	switch update.Message.Text {
 	case "/test":
-		err := botH.GetAcProtocol(update.Message.From.UserName, userRepo, hub)
-		if err != nil {
-			return
-		}
-		msg.Text = "Відскануйте будьяку кнонку на пульті"
+		//err := botH.GetAcProtocol(update.Message.From.UserName, userRepo, hub)
+		//if err != nil {
+		//	return
+		//}
+		msg.Text = "Тепер ви можете сказати мені, які налаштування ви хочете встановити або вручну встановіть їх."
+		isOnline := hub.GetConnectionByID(update.Message.From.UserName) != nil
+		ui.ConfigForm(bot, acState, isOnline)
 	case "/start":
-		newUser := model.User{
-			Username: update.Message.From.UserName,
-			ChatID:   update.Message.Chat.ID,
-		}
-		err := userRepo.CreateUser(newUser)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		msg.Text = "Hello! I am Jotun. How can I help you?"
+		//newUser := model.User{
+		//	Username: update.Message.From.UserName,
+		//	ChatID:   update.Message.Chat.ID,
+		//}
+		//err := userRepo.CreateUser(newUser)
+		//if err != nil {
+		//	log.Println(err)
+		//	return
+		//}
+		//err := botH.GetAcProtocol(update.Message.From.UserName, userRepo, hub)
+		//if err != nil {
+		//	return
+		//}
+		msg.Text = "Відскануйте будь-яку кнонку на пульті"
 	case "/stop":
 		msg.Text = "Goodbye!"
 	case "/on":
@@ -130,19 +138,19 @@ func handleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[st
 	case "/config":
 		isOnline := hub.GetConnectionByID(update.Message.From.UserName) != nil
 		ui.ConfigForm(bot, acState, isOnline)
-		//default:
-		//	response, err := chatGPT.SendGPTRequest(update.Message.Text, acState)
-		//	if err != nil {
-		//		log.Println(err)
-		//		return
-		//	}
-		//	err = handlers.GPTRespToACState(response, acState)
-		//	if err != nil {
-		//		msg.Text = err.Error()
-		//	} else {
-		//		isOnline := hub.GetConnectionByID(update.Message.From.UserName) != nil
-		//		ui.ConfigForm(bot, acState, isOnline)
-		//	}
+	default:
+		response, err := chatGPT.SendGPTRequest(update.Message.Text, acState)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		err = handlers.GPTRespToACState(response, acState)
+		if err != nil {
+			msg.Text = err.Error()
+		} else {
+			isOnline := hub.GetConnectionByID(update.Message.From.UserName) != nil
+			ui.ConfigForm(bot, acState, isOnline)
+		}
 
 	}
 
@@ -172,6 +180,7 @@ func handleCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, acStates map[s
 			TargetTemp: float32(state.Degrees),
 			Stop:       true,
 			Config:     state,
+			EmojiNum:   1,
 		}
 		acStates[update.CallbackQuery.From.UserName] = acState
 	}

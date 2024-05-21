@@ -13,7 +13,8 @@ type ACState struct {
 	TargetTemp  float32
 	CurrentTemp float32
 	Bot         *tgbotapi.BotAPI
-	Update      tgbotapi.Update
+	MsgID       int
+	EmojiNum    int
 	NextCheck   time.Time
 	Stop        bool
 	Config      AirConditionerConfig

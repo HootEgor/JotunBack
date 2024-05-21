@@ -21,7 +21,7 @@ func StateForm(bot *tgbotapi.BotAPI, acState *model.ACState, isOnline bool) {
 
 func StateKeyboard(acState *model.ACState) tgbotapi.InlineKeyboardMarkup {
 	row1 := tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Викл.", "stop"),
+		tgbotapi.NewInlineKeyboardButtonData("Стоп", "stop"),
 	)
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(row1)
 	return keyboard
@@ -31,11 +31,20 @@ func StateMsg(acState *model.ACState, isOnline bool) string {
 	modeEmoji := "Cool❄️"
 	switch acState.Config.Mode {
 	case 1:
-		modeEmoji = "Cool❄️"
+		modeEmoji = "Cool"
+		for i := 0; i < acState.EmojiNum; i++ {
+			modeEmoji += "❄️"
+		}
 	case 2:
-		modeEmoji = "Heat☀️"
+		modeEmoji = "Heat"
+		for i := 0; i < acState.EmojiNum; i++ {
+			modeEmoji += "☀️"
+		}
 	case 3:
-		modeEmoji = "Dry♨️"
+		modeEmoji = "Dry"
+		for i := 0; i < acState.EmojiNum; i++ {
+			modeEmoji += "♨️"
+		}
 	}
 
 	onlineEmoji := "❌"
